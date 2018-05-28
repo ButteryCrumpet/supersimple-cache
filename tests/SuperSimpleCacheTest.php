@@ -24,9 +24,9 @@ class SuperSimpleCacheTest extends TestCase
     {
         $key = "key";
         $expiration = time() + (60 * 60 * 24);
-        file_put_contents($this->tempDir . "/" . $key . $this->extension, $expiration . PHP_EOL . serialize($this->value));
+        file_put_contents($this->tempDir . "/" . hash("md5", $key) . $this->extension, $expiration . PHP_EOL . serialize($this->value));
         $this->assertEquals($this->cache->get($key), $this->value);
-        unlink($this->tempDir . "/" . $key . $this->extension);
+        unlink($this->tempDir . "/" . hash("md5", $key) . $this->extension);
     }
 
     public function testGetReturnsDefaultIfKeyDoesNotExist()
@@ -40,12 +40,12 @@ class SuperSimpleCacheTest extends TestCase
         $old_time = time() - (60 * 60 * 24);
         $key = "expired";
         file_put_contents(
-            $this->tempDir . "/" . $key . $this->extension,
+            $this->tempDir . "/" . hash("md5", $key) . $this->extension,
             $old_time . PHP_EOL . serialize($this->value)
         );
         $default = "default";
         $this->assertEquals($this->cache->get($key, $default), $default);
-        unlink($this->tempDir . "/" . $key . $this->extension);
+        unlink($this->tempDir . "/" . hash("md5", $key) . $this->extension);
     }
 
     public function testSetCorrectlySetsCacheItem()
@@ -53,14 +53,14 @@ class SuperSimpleCacheTest extends TestCase
         $key = "set";
         $val = "some value";
         $this->assertTrue($this->cache->set($key, $val, new DateInterval("PT5M")));
-        $this->assertFileExists($this->tempDir . "/" . $key . $this->extension);
-        unlink($this->tempDir . "/" . $key . $this->extension);
+        $this->assertFileExists($this->tempDir . "/" . hash("md5", $key) . $this->extension);
+        unlink($this->tempDir . "/" . hash("md5", $key) . $this->extension);
     }
 
     public function testDeleteCorrectlyDeletesItem()
     {
         $key = "deleteMe";
-        file_put_contents($this->tempDir . "/" . $key . $this->extension, "deleteMe");
+        file_put_contents($this->tempDir . "/" . hash("md5", $key) . $this->extension, "deleteMe");
         $this->assertTrue($this->cache->delete($key));
     }
 
@@ -73,7 +73,7 @@ class SuperSimpleCacheTest extends TestCase
         $this->cache->clear();
         $ok = true;
         foreach ($files as $file) {
-            $ok = $ok && !file_exists($this->tempDir . "/" . $file . $this->extension);
+            $ok = $ok && !file_exists($this->tempDir . "/" . hash("md5", $file) . $this->extension);
         }
         $this->assertTrue($ok);
     }
@@ -91,6 +91,19 @@ class SuperSimpleCacheTest extends TestCase
         $this->cache->clear();
     }
 
+    public function testHasCorrectlyReturnsTrueWhenCacheExists()
+    {
+        $key = "check me";
+        file_put_contents($this->tempDir . "/" . hash("md5", $key) . $this->extension, "checkme");
+        $this->assertTrue($this->cache->has($key));
+        unlink($this->tempDir . "/" . hash("md5", $key) . $this->extension);
+    }
+
+    public function testHasCorrectlyReturnsFalseWhenCacheDoesNotExist()
+    {
+        $this->assertFalse($this->cache->has("non existing cache"));
+    }
+
     /**
      * @expectedException SuperSimpleCache\Exceptions\InvalidArgumentException
      */
@@ -105,13 +118,5 @@ class SuperSimpleCacheTest extends TestCase
     public function testMethodsThrowExceptionWithInvalidKeyType()
     {
         $this->cache->get([]);
-    }
-
-    /**
-     * @expectedException SuperSimpleCache\Exceptions\InvalidArgumentException
-     */
-    public function testMethodsThrowExceptionWithInvalidKeyString()
-    {
-        $this->cache->get("  ");
     }
 }

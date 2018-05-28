@@ -47,7 +47,7 @@ class SuperSimpleCache implements CacheInterface
      */
     public function get($key, $default = null)
     {
-        $this->checkKey($key);
+        $key = $this->generateKey($key);
 
         $fileInfo = new \SplFileInfo($this->buildPath($key));
         if (!$fileInfo->isFile()) {
@@ -64,7 +64,12 @@ class SuperSimpleCache implements CacheInterface
         while (!$file->eof()) {
             $value .= $file->fgets();
         }
-        return unserialize($value);
+        
+        $unserialized = unserialize($value);
+        if ($unserialized === false && $value !== serialize(false)) {
+            return $default;
+        }
+        return $unserialized;
     }
 
     /**
@@ -80,7 +85,7 @@ class SuperSimpleCache implements CacheInterface
      */
     public function set($key, $value, $ttl = null)
     {
-        $this->checkKey($key);
+        $key = $this->generateKey($key);
 
         if (!($ttl instanceof \DateInterval || \is_integer($ttl) || $ttl === null)) {
             throw new InvalidArgumentException;
@@ -117,7 +122,7 @@ class SuperSimpleCache implements CacheInterface
      */
     public function delete($key)
     {
-        $this->checkKey($key);
+        $key = $this->generateKey($key);
         $location = $this->buildPath($key);
         return !file_exists($location) || unlink($location);
     }
@@ -221,23 +226,22 @@ class SuperSimpleCache implements CacheInterface
      */
     public function has($key)
     {
-        $this->checkKey($key);
+        $key = $this->generateKey($key);
+        $fileInfo = new \SplFileInfo($this->buildPath($key));
+        return $fileInfo->isFile();
     }
 
-    private function checkKey($key)
+    private function generateKey($key)
     {
-        if (\is_string($key)) {
-            if (\preg_match('/^([-\.\w]+)$/', $key)) {
-                return true;
-            }
+        if (!\is_string($key)) {
+            throw new InvalidArgumentException(
+                sprintf(
+                    "Key of type %s given. Must be a string of only word characters not including '.' and '-'",
+                    gettype($key)
+                )
+            );
         }
-        throw new InvalidArgumentException(
-            sprintf(
-                "Key of type %s given. Must be a string of only word characters not including '.' and '-'",
-                gettype($key)
-            )
-        );
-        return false;
+        return \hash("md5", $key);
     }
 
     private function buildPath($key)
